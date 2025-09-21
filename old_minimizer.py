@@ -146,21 +146,7 @@ def truncate_content_stream_bytes(stream_bytes: bytes, max_ops: int, logger) -> 
         return res
     except Exception as e:
         logger(f"truncate_content_stream_bytes: exception {e}; falling back to raw truncation")
-        raise(e)
         return stream_bytes[:max_ops * 16]
-
-def clear_object(obj): # Clears an object. Pass by reference...
-    keys_to_delete = list(obj.keys())
-    for k in keys_to_delete:
-        if k == "/Length":
-            continue
-        del obj[k]
-        '''
-        try:
-            del obj[k]
-        except Exception:
-            pass
-        '''
 
 # -----------------------------
 # Main PDF minimizer
@@ -177,7 +163,6 @@ def minimize_pdf(in_pdf: Path, out_pdf: Path,
     - Replace images whose stream length > image_threshold with 1x1 PNG
     - Save cleaned file (pikepdf will rebuild xref so unreachable objects are dropped)
     """
-    print("in_pdf: "+str(in_pdf))
     logger(f"[{now()}] Minimizing {in_pdf} -> {out_pdf} (max_pages={max_pages}, max_ops={max_ops}, image_thresh={image_threshold})")
     # try:
 
@@ -209,7 +194,6 @@ def minimize_pdf(in_pdf: Path, out_pdf: Path,
                     continue
                 # stream size check
                 stream_len = len(obj.read_bytes() or b'')
-                '''
                 if stream_len > image_threshold:
                     # replace with small PNG stream
                     # logger(f"   - Replacing large image object {objnum} ({stream_len} bytes) with tiny PNG")
@@ -227,54 +211,22 @@ def minimize_pdf(in_pdf: Path, out_pdf: Path,
                             cs = obj["/ColorSpace"]
                             if isinstance(cs, pikepdf.Name):
                                 newdict["/ColorSpace"] = cs
-                        except Exception as e:
-                            raise(e)
+                        except Exception:
                             pass
                     if "/BitsPerComponent" in obj:
                         try:
                             bpc = obj["/BitsPerComponent"]
                             if isinstance(bpc, int):
                                 newdict["/BitsPerComponent"] = bpc
-                        except Exception as e:
-                            raise(e)
+                        except Exception:
                             pass
                     # replace the stream
-                    print("type(obj): "+str(type(obj)))
-                    print("obj.__dir(): "+str(obj.__dir__()))
                     obj.clear()
                     for k, v in newdict.items():
                         obj[k] = v
                     obj.write_bytes(TINY_PNG)
                     replaced_images += 1
-                '''
-
-
-                if stream_len > image_threshold:
-                    logger(f"   - Replacing large image object ({stream_len} bytes) with tiny PNG")
-
-                    # Reset the dictionary (obj is a Stream, acts like a dict)
-                    keys_to_delete = list(obj.keys())
-                    for k in keys_to_delete:
-                        try:
-                            del obj[k]
-                        except Exception:
-                            pass
-
-                    # Add new minimal dictionary entries
-                    obj["/Type"] = pikepdf.Name("/XObject")
-                    obj["/Subtype"] = pikepdf.Name("/Image")
-                    obj["/Width"] = 1
-                    obj["/Height"] = 1
-                    obj["/ColorSpace"] = pikepdf.Name("/DeviceRGB")
-                    obj["/BitsPerComponent"] = 8
-
-                    # Overwrite stream data with tiny PNG bytes
-                    # obj.write_bytes(TINY_PNG)
-                    obj.write(TINY_PNG)
-
-
             except Exception as e:
-                raise(e)
                 # logger(f"   - Warning: while scanning image object {objnum}: {e}")
                 logger(f"   - Warning: while scanning image object : {e}")
 
@@ -293,43 +245,25 @@ def minimize_pdf(in_pdf: Path, out_pdf: Path,
                             if isinstance(c, pikepdf.Stream):
                                 old_bytes = c.read_bytes() or b''
                                 new_bytes = truncate_content_stream_bytes(old_bytes, max_ops, logger)
-                                # c.clear()
-                                print("c.keys() : "+str(c.keys()))
-                                print(c)
-                                print("type(c) : "+str(type(c)))
-                                keys_to_delete = list(c.keys())
-                                for k in keys_to_delete:
-                                    print("k: "+str(k))
-                                    if k != "/Length": # Do not try to delete length...
-                                        del c[k]
-                                print("poo1")
-                                c["/Length"] == len(new_bytes)
-                                print("poo2")
-                                # c.write_bytes(new_bytes)
-                                c.write(new_bytes)
+                                c.clear()
+                                c.write_bytes(new_bytes)
                                 new_contents.append(c)
                                 truncated_streams += 1
                             else:
                                 new_contents.append(c)
                         except Exception as e:
-                            raise(e)
                             logger(f"     page {p_index}: error truncating stream array element: {e}")
                     page[ pikepdf.Name("/Contents") ] = new_contents
                 elif isinstance(contents, pikepdf.Stream):
                     old_bytes = contents.read_bytes() or b''
                     new_bytes = truncate_content_stream_bytes(old_bytes, max_ops, logger)
-                    # contents.clear()
-                    clear_object(contents)
-                    # contents.write_bytes(new_bytes)
-                    # contents["/Length"] = len(new_bytes)
-                    contents.write(new_bytes)
-                    assert contents["/Length"] == len(new_bytes)
+                    contents.clear()
+                    contents.write_bytes(new_bytes)
                     truncated_streams += 1
                 else:
                     # weird type
                     continue
             except Exception as e:
-                raise(e)
                 logger(f"  - Warning: while truncating content on page {p_index}: {e}")
 
         # Save minimized PDF (let pikepdf rebuild xref and drop unreferenced objects)
@@ -376,7 +310,7 @@ def main():
         try:
             with open(log_file, "a", encoding=LOG_ENCODING) as lf:
                 lf.write(line + "\n")
-        except Exception as e:
+        except Exception:
             pass
 
     logger(f"Starting decompress+minimize run. input={input_dir}, decompressed={dec_dir}, minimized={min_dir}")
