@@ -410,6 +410,10 @@ def main():
     min_dir = Path(args.minimized_dir)
     log_file = Path(args.log)
 
+    failed_dir = Path("./failed/")
+
+    failed_dir.mkdir(parents=True, exist_ok=True)
+
     dec_dir.mkdir(parents=True, exist_ok=True)
     min_dir.mkdir(parents=True, exist_ok=True)
 
