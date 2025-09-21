@@ -208,11 +208,13 @@ def minimize_pdf(in_pdf: Path, out_pdf: Path, max_pages, max_ops, image_threshol
 
 def process_file(f: Path, dec_dir: Path, min_dir: Path, args) -> str:
     dec_out = dec_dir / f.name
+    min_out = min_dir / f.name
+    if min_out.is_file(): # Skip because already exists...
+        return f"Processed {f.name}"
     ok, msg = run_qpdf_uncompress(f, dec_out)
     if not ok:
         safe_copy(f, dec_out)
     raw_decompress_flate_streams(dec_out)
-    min_out = min_dir / f.name
     minimize_pdf(dec_out, min_out, args.max_pages, args.max_ops, args.image_threshold)
     return f"Processed {f.name}"
 
