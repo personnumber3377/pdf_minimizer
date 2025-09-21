@@ -314,6 +314,9 @@ def main():
         # force raw FlateDecode decompression
         raw_decompress_flate_streams(dec_out, logger)
         min_out = min_dir / f.name
+        if f.name in os.listdir(min_dir):
+            logger(f"Skipping file: {f.name} ...")
+            continue
         minimize_pdf(dec_out, min_out,
                      max_pages=args.max_pages,
                      max_ops=args.max_ops,
