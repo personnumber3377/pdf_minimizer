@@ -218,6 +218,11 @@ def process_file(f: Path, dec_dir: Path, min_dir: Path, args) -> str:
     minimize_pdf(dec_out, min_out, args.max_pages, args.max_ops, args.image_threshold)
     return f"Processed {f.name}"
 
+def already_exists(f: Path, dec_dir: Path) -> bool: # Already exists???
+    min_out = min_dir / f.name
+    if min_out.is_file(): # Skip because already exists...
+        return True
+    return False
 
 def main():
     ap = argparse.ArgumentParser()
@@ -237,7 +242,7 @@ def main():
     dec_dir.mkdir(parents=True, exist_ok=True)
     min_dir.mkdir(parents=True, exist_ok=True)
 
-    files = [p for p in input_dir.iterdir() if p.is_file() and is_pdf_filename(p)]
+    files = [p for p in input_dir.iterdir() if p.is_file() and is_pdf_filename(p) and not already_exists(p, dec_dir)]
 
     if args.workers > 1:
         with ProcessPoolExecutor(max_workers=args.workers) as ex:
