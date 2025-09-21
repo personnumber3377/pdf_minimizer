@@ -221,6 +221,7 @@ def process_file(f: Path, dec_dir: Path, min_dir: Path, args) -> str:
 def already_exists(f: Path, min_dir: Path) -> bool: # Already exists???
     min_out = min_dir / f.name
     if min_out.is_file(): # Skip because already exists...
+        print(f.name+" already exists!!!")
         return True
     return False
 
