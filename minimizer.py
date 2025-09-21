@@ -208,7 +208,10 @@ def minimize_pdf(in_pdf: Path, out_pdf: Path,
                 if subtype != pikepdf.Name("/Image"):
                     continue
                 # stream size check
-                stream_len = len(obj.read_bytes() or b'')
+                # stream_len = len(obj.read_bytes() or b'')
+
+                stream_len = obj["/Length"] # The stuff...
+
                 '''
                 if stream_len > image_threshold:
                     # replace with small PNG stream
