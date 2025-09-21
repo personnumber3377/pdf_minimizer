@@ -206,68 +206,71 @@ def minimize_pdf(in_pdf: Path, out_pdf: Path,
                  image_threshold: int,
                  logger=print):
     logger(f"[{now()}] Minimizing {in_pdf} -> {out_pdf}")
-    with pikepdf.Pdf.open(in_pdf, allow_overwriting_input=True) as pdf:
-        total_pages = len(pdf.pages)
-        if max_pages is not None and total_pages > max_pages:
-            new_pdf = pikepdf.Pdf.new()
-            for i in range(max_pages):
-                new_pdf.pages.append(pdf.pages[i])
-            pdf.close()
-            pdf = new_pdf
+    try:
+        with pikepdf.Pdf.open(in_pdf, allow_overwriting_input=True) as pdf:
+            total_pages = len(pdf.pages)
+            if max_pages is not None and total_pages > max_pages:
+                new_pdf = pikepdf.Pdf.new()
+                for i in range(max_pages):
+                    new_pdf.pages.append(pdf.pages[i])
+                pdf.close()
+                pdf = new_pdf
 
-        replaced_images = 0
-        for obj in pdf.objects:
-            if not isinstance(obj, pikepdf.Stream):
-                continue
-            subtype = obj.get("/Subtype")
-            if subtype != pikepdf.Name("/Image"):
-                continue
-            stream_len = obj.get("/Length", 0)
-            if isinstance(stream_len, int) and stream_len > image_threshold:
-                logger(f"   - Replacing image {stream_len} bytes with tiny PNG")
-                for k in list(obj.keys()):
-                    if k != "/Length":
-                        del obj[k]
-                obj["/Type"] = pikepdf.Name("/XObject")
-                obj["/Subtype"] = pikepdf.Name("/Image")
-                obj["/Width"] = 1
-                obj["/Height"] = 1
-                obj["/ColorSpace"] = pikepdf.Name("/DeviceRGB")
-                obj["/BitsPerComponent"] = 8
-                obj.write(TINY_PNG)
-                replaced_images += 1
+            replaced_images = 0
+            for obj in pdf.objects:
+                if not isinstance(obj, pikepdf.Stream):
+                    continue
+                subtype = obj.get("/Subtype")
+                if subtype != pikepdf.Name("/Image"):
+                    continue
+                stream_len = obj.get("/Length", 0)
+                if isinstance(stream_len, int) and stream_len > image_threshold:
+                    logger(f"   - Replacing image {stream_len} bytes with tiny PNG")
+                    for k in list(obj.keys()):
+                        if k != "/Length":
+                            del obj[k]
+                    obj["/Type"] = pikepdf.Name("/XObject")
+                    obj["/Subtype"] = pikepdf.Name("/Image")
+                    obj["/Width"] = 1
+                    obj["/Height"] = 1
+                    obj["/ColorSpace"] = pikepdf.Name("/DeviceRGB")
+                    obj["/BitsPerComponent"] = 8
+                    obj.write(TINY_PNG)
+                    replaced_images += 1
 
-        truncated_streams = 0
-        for p_index, page in enumerate(pdf.pages):
-            contents = page.get("/Contents")
-            if contents is None:
-                continue
-            if isinstance(contents, pikepdf.Array):
-                new_contents = pikepdf.Array()
-                for c in contents:
-                    if isinstance(c, pikepdf.Stream):
-                        old_bytes = c.read_bytes() or b''
-                        new_bytes = truncate_content_stream_bytes(old_bytes, max_ops, logger)
-                        clear_object(c)
-                        c.write(new_bytes)
-                        truncated_streams += 1
-                    new_contents.append(c)
-                page[pikepdf.Name("/Contents")] = new_contents
-            elif isinstance(contents, pikepdf.Stream):
-                old_bytes = contents.read_bytes() or b''
-                new_bytes = truncate_content_stream_bytes(old_bytes, max_ops, logger)
-                clear_object(contents)
-                contents.write(new_bytes)
-                truncated_streams += 1
+            truncated_streams = 0
+            for p_index, page in enumerate(pdf.pages):
+                contents = page.get("/Contents")
+                if contents is None:
+                    continue
+                if isinstance(contents, pikepdf.Array):
+                    new_contents = pikepdf.Array()
+                    for c in contents:
+                        if isinstance(c, pikepdf.Stream):
+                            old_bytes = c.read_bytes() or b''
+                            new_bytes = truncate_content_stream_bytes(old_bytes, max_ops, logger)
+                            clear_object(c)
+                            c.write(new_bytes)
+                            truncated_streams += 1
+                        new_contents.append(c)
+                    page[pikepdf.Name("/Contents")] = new_contents
+                elif isinstance(contents, pikepdf.Stream):
+                    old_bytes = contents.read_bytes() or b''
+                    new_bytes = truncate_content_stream_bytes(old_bytes, max_ops, logger)
+                    clear_object(contents)
+                    contents.write(new_bytes)
+                    truncated_streams += 1
 
-        tmp_out = out_pdf.with_suffix(out_pdf.suffix + ".tmp")
-        pdf.save(str(tmp_out), linearize=True, compress_streams=False)
-        tmp_out.replace(out_pdf)
+            tmp_out = out_pdf.with_suffix(out_pdf.suffix + ".tmp")
+            pdf.save(str(tmp_out), linearize=True, compress_streams=False)
+            tmp_out.replace(out_pdf)
 
-        logger(f"Saved minimized {out_pdf}")
-        return True, {"replaced_images": replaced_images,
-                      "truncated_streams": truncated_streams,
-                      "pages_kept": len(pdf.pages)}
+            logger(f"Saved minimized {out_pdf}")
+            return True, {"replaced_images": replaced_images,
+                          "truncated_streams": truncated_streams,
+                          "pages_kept": len(pdf.pages)}
+    except:
+        pass
 
 
 # -----------------------------
