@@ -247,6 +247,7 @@ def main():
 
     if args.workers > 1:
         with ProcessPoolExecutor(max_workers=args.workers) as ex:
+            print("processing "+str(f.name))
             futures = {ex.submit(process_file, f, dec_dir, min_dir, args): f for f in files}
             for fut in as_completed(futures):
                 try:
@@ -256,6 +257,7 @@ def main():
     else:
         for f in files:
             try:
+                print("processing "+str(f.name))
                 print(process_file(f, dec_dir, min_dir, args))
             except Exception as e:
                 print(f"Error on {f.name}: {e}")
