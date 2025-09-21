@@ -21,10 +21,13 @@ import tempfile
 import hashlib
 import time
 import re
+import zlib
 from pathlib import Path
 
 try:
     import pikepdf
+    # from pikepdf import Name, Stream, Array, Dictionary
+    from pikepdf import Stream, Name, Array, Dictionary, StreamDecodeLevel
 except Exception as e:
     print("Error: pikepdf required. Install with: pip3 install pikepdf", file=sys.stderr)
     raise
@@ -54,6 +57,213 @@ OP_TOKEN_RE = re.compile(rb'^[A-Za-z]{1,8}$')
 def now():
     return time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
 
+'''
+def decode_flate_stream(obj, logger):
+    logger(f"Called with {obj}")
+    try:
+        # if not isinstance(obj, pikepdf.Stream):
+        #     return False
+        filt = obj.get("/Filter")
+        if filt == pikepdf.Name("/FlateDecode") or (
+            isinstance(filt, pikepdf.Array) and pikepdf.Name("/FlateDecode") in filt
+        ):
+            print("Has filter!!!!")
+            raw = obj.read_raw_bytes()   # get compressed bytes without decoding
+            logger(f"Raw: {raw}")
+            try:
+                decoded = zlib.decompress(raw)
+            except Exception as e:
+                logger(f"   - Failed to decompress FlateDecode stream: {e}")
+                return False
+
+            # Clear dict entries that point to filters
+            keys_to_delete = [k for k in obj.keys() if k in ("/Filter", "/DecodeParms")]
+            for k in keys_to_delete:
+                try:
+                    del obj[k]
+                except Exception:
+                    pass
+
+            obj.write(decoded)  # overwrite with decoded content
+            obj["/Length"] = len(decoded)
+            logger(f"   - Replaced FlateDecode stream with raw decoded ({len(decoded)} bytes)")
+            return True
+        return False
+    except Exception as e:
+        logger(f"   - Error in decode_flate_stream: {e}")
+        return False
+'''
+
+'''
+def decode_flate_stream(obj, logger, seen=None, path="root"):
+    """
+    Recursively search for and decode FlateDecode streams inside obj.
+    Replaces compressed data with decoded bytes, strips /Filter & /DecodeParms.
+    """
+    if seen is None:
+        seen = set()
+    # Avoid infinite recursion on the same object
+    try:
+        objid = getattr(obj, "objgen", None)
+        if objid is not None and objid in seen:
+            return False
+        if objid is not None:
+            seen.add(objid)
+    except Exception:
+        # print("Fuck!!!")
+        pass
+
+    decoded_any = False
+
+    try:
+        # Handle if it's a Stream object
+        if isinstance(obj, Stream):
+            print("Is stream!!!")
+            filt = obj.get("/Filter")
+            if filt == Name("/FlateDecode") or (
+                isinstance(filt, Array) and Name("/FlateDecode") in filt
+            ):
+                logger(f"[{path}] Found FlateDecode stream in {obj}")
+                try:
+                    raw = obj.read_raw_bytes()   # compressed data
+                except Exception as e:
+                    logger(f"[{path}] Failed to read raw bytes: {e}")
+                    raw = None
+
+                if raw:
+                    try:
+                        decoded = zlib.decompress(raw)
+                        # Drop filter keys
+                        for k in ["/Filter", "/DecodeParms"]:
+                            if k in obj:
+                                del obj[k]
+                        obj.write(decoded)
+                        obj["/Length"] = len(decoded)
+                        logger(f"[{path}] Decoded Flate stream -> {len(decoded)} bytes")
+                        decoded_any = True
+                    except Exception as e:
+                        logger(f"[{path}] zlib failed: {e}")
+
+        # Recurse if it's a dictionary-like object
+        if hasattr(obj, "items"):
+            print("current obj.items: "+str(obj.items)) # Something like this???
+            print("obj: "+str(obj))
+            if isinstance(obj, pikepdf.Array):
+                # Array...
+                print("obj: "+str(obj)+" is an array!!!!!!")
+                # isinstance(obj, Array):
+                for idx, v in enumerate(obj):
+                    if isinstance(v, (Stream, Dictionary, Array)):
+                        if decode_flate_stream(v, logger, seen, path=f"{path}[{idx}]"):
+                            decoded_any = True
+                return decoded_any
+
+            for k, v in obj.items():
+                if isinstance(v, (Stream, Dictionary, Array)):
+                    if decode_flate_stream(v, logger, seen, path=f"{path}/{k}"):
+                        decoded_any = True
+
+        # Recurse if it's an array-like object
+        elif isinstance(obj, Array):
+            for idx, v in enumerate(obj):
+                if isinstance(v, (Stream, Dictionary, Array)):
+                    if decode_flate_stream(v, logger, seen, path=f"{path}[{idx}]"):
+                        decoded_any = True
+
+    except Exception as e:
+        logger(f"[{path}] Error: {e}")
+
+    return decoded_any
+'''
+
+
+def decode_flate_stream(obj, logger, seen=None, path="root"):
+    """
+    Recursively traverse and ensure FlateDecode streams are fully decoded.
+    Works even if qpdf has already decoded at open time.
+    """
+    if seen is None:
+        seen = set()
+    try:
+        objid = getattr(obj, "objgen", None)
+        if objid is not None and objid in seen:
+            return False
+        if objid is not None:
+            seen.add(objid)
+    except Exception:
+        pass
+
+    decoded_any = False
+
+    try:
+        if isinstance(obj, Stream):
+            print(obj.__dir__())
+            # Explicitly request raw vs. decoded
+            try:
+                raw = obj.read_raw_bytes()     # compressed (if still available)
+                decoded = obj.read_bytes(StreamDecodeLevel.generalized)  # decoded form
+            except Exception as e:
+                logger(f"[{path}] cannot read stream: {e}")
+                return False
+            print("raw: "+str(raw))
+            # If Filter entry is gone, assume it was already decoded
+            # filt = obj.get("/Filter")
+            # if filt is not None:
+            # logger(f"[{path}] stream still has Filter={filt}, forcing decode")
+
+            # try:
+            #     decoded2 = zlib.decompress(raw)
+            # except Exception as e:
+            #     logger(f"[{path}] zlib failed: {e}")
+            #     decoded2 = decoded  # fallback to pikepdf’s decode
+            decoded2 = raw
+            # clear filter keys
+            # for k in ["/Filter", "/DecodeParms"]:
+            #     if k in obj:
+            #         del obj[k]
+
+            obj.write(decoded2)
+            # obj["/Length"] = len(decoded2)
+            logger(f"[{path}] replaced with uncompressed stream, {len(decoded2)} bytes")
+            decoded_any = True
+            obj = None # Set to none...
+
+
+
+            #else:
+            #    # Already decoded by pikepdf
+            #    logger(f"[{path}] stream already decoded ({len(decoded)} bytes)")
+        
+        # Recurse into dicts/arrays
+        if hasattr(obj, "items"):
+
+            if isinstance(obj, pikepdf.Array):
+                # Array...
+                print("obj: "+str(obj)+" is an array!!!!!!")
+                # isinstance(obj, Array):
+                for idx, v in enumerate(obj):
+                    if isinstance(v, (Stream, Dictionary, Array)):
+                        if decode_flate_stream(v, logger, seen, path=f"{path}[{idx}]"):
+                            decoded_any = True
+                return decoded_any
+
+            for k, v in obj.items():
+                if isinstance(v, (Stream, Dictionary, Array)):
+                    if decode_flate_stream(v, logger, seen, f"{path}/{k}"):
+                        decoded_any = True
+
+        elif isinstance(obj, Array):
+            for idx, v in enumerate(obj):
+                if isinstance(v, (Stream, Dictionary, Array)):
+                    if decode_flate_stream(v, logger, seen, f"{path}[{idx}]"):
+                        decoded_any = True
+
+    except Exception as e:
+        logger(f"[{path}] Error: {e}")
+
+    return decoded_any
+
+
 def tiny_png_bytes():
     """Return bytes for a 1x1 white PNG as a replacement image."""
     img = Image.new("RGB", (1, 1), (255, 255, 255))
@@ -70,7 +280,7 @@ def run_qpdf_uncompress(src_path: Path, dst_path: Path, logger):
     if not qpdf_path:
         logger(f"qpdf not found on PATH -> skipping decompression step for {src_path}")
         return False
-    cmd = [qpdf_path, "--stream-data=uncompress", str(src_path), str(dst_path)]
+    cmd = [qpdf_path, "--stream-data=uncompress", "--decode-level=all", "--object-streams=disable", str(src_path), str(dst_path)] # Uncompress all shit...
     logger(f"Running qpdf to uncompress streams: {' '.join(cmd)}")
     try:
         subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -181,7 +391,7 @@ def minimize_pdf(in_pdf: Path, out_pdf: Path,
     logger(f"[{now()}] Minimizing {in_pdf} -> {out_pdf} (max_pages={max_pages}, max_ops={max_ops}, image_thresh={image_threshold})")
     # try:
 
-    with pikepdf.Pdf.open(in_pdf, allow_overwriting_input=True) as pdf:
+    with pikepdf.Pdf.open(in_pdf, allow_overwriting_input=True) as pdf: # Stuff...
         # Limit pages if requested
         total_pages = len(pdf.pages)
         if max_pages is not None and total_pages > max_pages:
@@ -199,8 +409,10 @@ def minimize_pdf(in_pdf: Path, out_pdf: Path,
         # iterate all objects: pikepdf makes them dict-like; use list(pdf.objects) to avoid mutating view
         # print("pdf.objects: "+str(pdf.objects))
         for obj in pdf.objects: # list(pdf.objects.items()): # list(pdf.objects): # was originally list(pdf.objects.items()):
+            print("obj: "+str(obj))
             try:
                 # only consider stream objects with /Subtype /Image
+                decode_flate_stream(obj, logger)
                 if not isinstance(obj, pikepdf.Stream):
                     continue
                 # many image XObjects have Subtype /Image
@@ -211,45 +423,6 @@ def minimize_pdf(in_pdf: Path, out_pdf: Path,
                 # stream_len = len(obj.read_bytes() or b'')
 
                 stream_len = obj["/Length"] # The stuff...
-
-                '''
-                if stream_len > image_threshold:
-                    # replace with small PNG stream
-                    # logger(f"   - Replacing large image object {objnum} ({stream_len} bytes) with tiny PNG")
-                    logger(f"   - Replacing large image object ({stream_len} bytes) with tiny PNG")
-                    # Build a minimal image dict that looks like an XObject image but with PNG stream
-                    # Simpler: set stream bytes to tiny PNG and remove/modify potentially incompatible keys.
-                    # Keep BitsPerComponent and ColorSpace if they exist and are simple Names.
-                    newdict = pikepdf.Dictionary()
-                    # Use XObject via Type/Subtype
-                    newdict["/Type"] = pikepdf.Name("/XObject")
-                    newdict["/Subtype"] = pikepdf.Name("/Image")
-                    # Keep ColorSpace if simple name
-                    if "/ColorSpace" in obj:
-                        try:
-                            cs = obj["/ColorSpace"]
-                            if isinstance(cs, pikepdf.Name):
-                                newdict["/ColorSpace"] = cs
-                        except Exception as e:
-                            raise(e)
-                            pass
-                    if "/BitsPerComponent" in obj:
-                        try:
-                            bpc = obj["/BitsPerComponent"]
-                            if isinstance(bpc, int):
-                                newdict["/BitsPerComponent"] = bpc
-                        except Exception as e:
-                            raise(e)
-                            pass
-                    # replace the stream
-                    print("type(obj): "+str(type(obj)))
-                    print("obj.__dir(): "+str(obj.__dir__()))
-                    obj.clear()
-                    for k, v in newdict.items():
-                        obj[k] = v
-                    obj.write_bytes(TINY_PNG)
-                    replaced_images += 1
-                '''
 
 
                 if stream_len > image_threshold:
@@ -336,9 +509,10 @@ def minimize_pdf(in_pdf: Path, out_pdf: Path,
                 logger(f"  - Warning: while truncating content on page {p_index}: {e}")
 
         # Save minimized PDF (let pikepdf rebuild xref and drop unreferenced objects)
-        save_kwargs = {"linearize": True}
+        save_kwargs = {"linearize": True, "recompress_flate": False, "stream_decode_level": pikepdf.StreamDecodeLevel.none}
         # write to temp and then move to avoid partial writes
         tmp_out = out_pdf.with_suffix(out_pdf.suffix + ".tmp")
+        
         pdf.save(str(tmp_out), **save_kwargs)
         tmp_out.replace(out_pdf)
         logger(f"Saved minimized PDF: {out_pdf} (replaced images: {replaced_images}, truncated streams: {truncated_streams})")
