@@ -1,0 +1,27 @@
+[2025-12-01T19:15:39] Starting decompress+minimize run. input=in, decompressed=decomp, minimized=min
+[2025-12-01T19:15:39] Processing ML_stage_1.pdf
+[2025-12-01T19:15:39] Running qpdf to uncompress streams: /usr/bin/qpdf --stream-data=uncompress --decode-level=all --object-streams=disable in/ML_stage_1.pdf decomp/ML_stage_1.pdf
+[2025-12-01T19:15:40]  - Binary flate pass made no replacements
+[2025-12-01T19:15:40] [2025-12-01T19:15:40] Minimizing decomp/ML_stage_1.pdf -> min/ML_stage_1.pdf (max_pages=5, max_ops=400, image_thresh=102400)
+[2025-12-01T19:15:40]   - Warning: while truncating content on page 0: '/Length may not be modified'
+[2025-12-01T19:15:40]   - Warning: while truncating content on page 1: '/Length may not be modified'
+[2025-12-01T19:15:40]   - Warning: while truncating content on page 2: '/Length may not be modified'
+[2025-12-01T19:15:40] Saved minimized PDF: min/ML_stage_1.pdf (replaced_images: 0, truncated_streams: 0)
+[2025-12-01T19:15:40] Done.
+[2025-12-01T19:18:10] Starting decompress+minimize run. input=in, decompressed=decomp, minimized=min
+[2025-12-01T19:18:10] Processing ML_stage_1.pdf
+[2025-12-01T19:18:10] Running qpdf to uncompress streams: /usr/bin/qpdf --stream-data=uncompress --decode-level=all --object-streams=disable in/ML_stage_1.pdf decomp/ML_stage_1.pdf
+[2025-12-01T19:18:10]  - Binary flate pass made no replacements
+[2025-12-01T19:18:10] [2025-12-01T19:18:10] Minimizing decomp/ML_stage_1.pdf -> min/ML_stage_1.pdf (max_pages=5, max_ops=400, image_thresh=102400)
+[2025-12-01T19:18:10]   - Warning: while truncating content on page 0: '/Length may not be modified'
+[2025-12-01T19:18:10]   - Warning: while truncating content on page 1: '/Length may not be modified'
+[2025-12-01T19:18:10]   - Warning: while truncating content on page 2: '/Length may not be modified'
+[2025-12-01T19:18:10] Saved minimized PDF: min/ML_stage_1.pdf (replaced_images: 0, truncated_streams: 0)
+[2025-12-01T19:18:10] Processing Week_5.pdf
+[2025-12-01T19:18:10] Running qpdf to uncompress streams: /usr/bin/qpdf --stream-data=uncompress --decode-level=all --object-streams=disable in/Week_5.pdf decomp/Week_5.pdf
+[2025-12-01T19:18:10]  - Binary flate pass made no replacements
+[2025-12-01T19:18:10] [2025-12-01T19:18:10] Minimizing decomp/Week_5.pdf -> min/Week_5.pdf (max_pages=5, max_ops=400, image_thresh=102400)
+[2025-12-01T19:18:10]   - Warning: while truncating content on page 0: '/Length may not be modified'
+[2025-12-01T19:18:10]   - Warning: while truncating content on page 1: '/Length may not be modified'
+[2025-12-01T19:18:10] Saved minimized PDF: min/Week_5.pdf (replaced_images: 0, truncated_streams: 0)
+[2025-12-01T19:18:10] Done.
